@@ -1,0 +1,28 @@
+﻿@if (drones != null)
+{
+    <h5>Drones</h5>
+    <table class="table" style="width:50%">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Max Capacity</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var drone in drones)
+            {
+                <tr>
+                    <td>@drone.Name</td>
+                    <td>@drone.MaxCapacity</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    [Parameter]
+    public List<Drone> drones { get; set; }
+
+}

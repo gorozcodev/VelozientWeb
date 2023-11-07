@@ -1,0 +1,93 @@
+﻿@page "/"
+
+<InputFile OnChange="UploadCsvFile" />
+
+
+
+<div class="container">
+    <Drones drones="drones" />
+    <Locations deliveryLocations="deliveryLocations"/>   
+</div>
+
+@code {
+
+    private string txtData = string.Empty;
+    private List<Drone> drones = new List<Drone>();
+    private List<DeliveryLocation> deliveryLocations = new List<DeliveryLocation>();
+
+    [Inject]
+    private IJSRuntime jSRuntime { get; set; }
+
+    private async Task UploadCsvFile(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            //read file
+            var file = e.File;
+            var stream = file.OpenReadStream();
+
+            using var reader = new StreamReader(stream);
+            txtData = await reader.ReadToEndAsync();
+
+            var lines = txtData.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            var droneLine = lines[0].Replace("[", "").Replace("]", "").Split(',');
+
+            //read header to create list of drones
+            for (int i = 0; i < droneLine.Length; i += 2)
+            {
+                drones.Add(new Drone(droneLine[i], int.Parse(droneLine[i + 1])));
+            }
+
+            //read to create list of delivery locations
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var locationLine = lines[i].Replace("[", "").Replace("]", "").Split(',');
+                deliveryLocations.Add(new DeliveryLocation() { Name = locationLine[0], TotalWeight = int.Parse(locationLine[1]) });
+            }
+
+            //assign each drone a delivery location based on weights to optimize
+            foreach (var location in deliveryLocations.OrderByDescending(c => c.TotalWeight))
+            {
+                foreach (var drone in drones)
+                {
+                    if (location.TotalWeight <= drone.RemainingCapacity)
+                    {
+                        drone.Deliveries.Add(location);
+                        drone.RemainingCapacity -= location.TotalWeight;
+                        break;
+                    }
+                }
+            }
+
+            //create and download result txt file
+            StringBuilder builder = new();
+
+            foreach (var drone in drones)
+            {
+                builder.AppendLine("[" + drone.Name.Trim() + "]");
+
+                var numberOfTrips = 1;
+
+                StringBuilder builderSub = new();
+                foreach (var trip in drone.Deliveries)
+                {
+                    builder.AppendLine($"Trip #{numberOfTrips}");
+                    builderSub.Append($"[{trip.Name}], ");
+                    builder.AppendLine(builderSub.ToString());
+                    numberOfTrips++;
+                }
+
+                builder.AppendLine();
+            }
+
+            byte[] txtBytes = Encoding.UTF8.GetBytes(builder.ToString());
+
+            await jSRuntime.InvokeVoidAsync("saveAsFile", "appended-data.txt", txtBytes);
+
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+}
